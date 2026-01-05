@@ -18,10 +18,10 @@ from pathlib import Path
 from dotenv import load_dotenv
 import os
 
-load_dotenv()
-
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+env_path = BASE_DIR / '.env'
+load_dotenv(dotenv_path=env_path)
 
 
 # Quick-start development settings - unsuitable for production
@@ -104,7 +104,8 @@ DATABASES = {
         'NAME': os.getenv("DATABASE_NAME"),
         'USER': os.getenv("DATABASE_USER"),
         'PASSWORD': os.getenv("DATABASE_PASSWORD"),
-        'HOST': ''
+        'HOST': os.getenv("DATABASE_HOST", "127.0.0.1"),
+        'PORT': os.getenv("DATABASE_PORT", "3306")
     }
 }
 

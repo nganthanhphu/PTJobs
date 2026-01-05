@@ -19,7 +19,7 @@ class User(AbstractUser):
         CANDIDATE = 'CANDIDATE', 'Candidate'
         COMPANY = 'COMPANY', 'Company'
 
-    role = models.CharField(max_length=10, choices=Role, default=Role.CANDIDATE)
+    role = models.CharField(max_length=10, choices=Role.choices, default=Role.CANDIDATE)
 
     @property
     def profile(self):
@@ -28,12 +28,12 @@ class User(AbstractUser):
 
 
 class CandidateProfile(BaseModel):
-    GENDER = [
-        ('Male', 'Male'),
-        ('Female', 'Female'),
-        ('Other', 'Other')
-    ]
-    gender = models.CharField(max_length=10, choices=GENDER, blank=True)
+    class Gender(models.TextChoices):
+        MALE = 'MALE', 'Male'
+        FEMALE = 'FEMALE', 'Female'
+        OTHER = 'OTHER', 'Other'
+        
+    gender = models.CharField(max_length=10, choices=Gender.choices, blank=True)
     dob = models.DateField(null=True, blank=True)
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='candidate_profile')
 
@@ -96,8 +96,8 @@ class Application(BaseModel):
         REJECTED = 'REJECTED', 'Rejected',
         TERMINATED = 'TERMINATED', 'Terminated'
 
-    status = models.CharField(max_length=10, choices=JobStatus, default=JobStatus.REVIEWING)
-    resume = models.CharField(max_length=255)
+    status = models.CharField(max_length=10, choices=JobStatus.choices, default=JobStatus.REVIEWING)
+    resume = models.ForeignKey(Resume, on_delete=models.RESTRICT, related_name='applications')
     candidate = models.ForeignKey(CandidateProfile, on_delete=models.CASCADE, related_name='applications')
     job_post = models.ForeignKey(JobPost, on_delete=models.CASCADE, related_name='applications')
 
