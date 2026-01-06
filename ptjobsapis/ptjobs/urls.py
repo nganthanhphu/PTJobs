@@ -4,8 +4,8 @@ from rest_framework.routers import DefaultRouter
 from ptjobs import views
 
 r = DefaultRouter()
-r.register('users', views.UserView, basename='user')
+r.register(r'resumes', views.CurrentUserResumeViewSet, basename='user-resumes')
 
 urlpatterns = [
-    path('', include(r.urls)),
+    path('', include(r.urls))
 ]

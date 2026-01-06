@@ -25,6 +25,9 @@ class User(AbstractUser):
     def profile(self):
         attr_name = f'{self.role.lower()}_profile'
         return getattr(self, attr_name, None)
+    
+    def __str__(self):
+        return self.username
 
 
 class CandidateProfile(BaseModel):
@@ -36,6 +39,9 @@ class CandidateProfile(BaseModel):
     gender = models.CharField(max_length=10, choices=Gender.choices, blank=True)
     dob = models.DateField(null=True, blank=True)
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='candidate_profile')
+    
+    def __str__(self):
+        return f"{self.user.username}'s Profile"
 
 
 class CompanyProfile(BaseModel):
@@ -43,6 +49,9 @@ class CompanyProfile(BaseModel):
     tax_number = models.CharField(max_length=50, null=False, blank=False, unique=True)
     address = models.CharField(max_length=255, blank=True)
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='company_profile')
+    
+    def __str__(self):
+        return self.name
 
 
 class CompanyImage(BaseModel):

@@ -5,10 +5,16 @@ from .models import (
     Resume, JobPost, JobCategory, WorkTime, Application, Review, Follow
 )
 
+class CandidateProfileInline(admin.StackedInline):
+    model = CandidateProfile
+    extra = 0
+    fields = ('gender', 'dob', 'active')
 
-admin.site.site_header = "PT Jobs Administration"
-admin.site.site_title = "PT Jobs Admin Portal"
-admin.site.index_title = "Welcome to PT Jobs Admin"
+
+class CompanyProfileInline(admin.StackedInline):
+    model = CompanyProfile
+    extra = 0
+    fields = ('name', 'tax_number', 'address', 'active')
 
 
 @admin.register(User)
@@ -21,32 +27,7 @@ class UserAdmin(admin.ModelAdmin):
         ('Trạng thái', {'fields': ('is_active', 'avatar')}),
     )
     filter_horizontal = ('groups', 'user_permissions')
-
-
-@admin.register(CandidateProfile)
-class CandidateProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'gender', 'dob', 'active', 'created_at')
-    list_filter = ('gender', 'active', 'created_at')
-    search_fields = ('user__username', 'user__email')
-    fieldsets = (
-        ('Thông tin cơ bản', {'fields': ('user', 'gender', 'dob')}),
-        ('Trạng thái', {'fields': ('active',)}),
-        ('Ngày tạo', {'fields': ('created_at',), 'classes': ('collapse',)}),
-    )
-    readonly_fields = ('created_at',)
-
-
-@admin.register(CompanyProfile)
-class CompanyProfileAdmin(admin.ModelAdmin):
-    list_display = ('name', 'tax_number', 'address', 'active', 'created_at')
-    list_filter = ('active', 'created_at')
-    search_fields = ('name', 'tax_number', 'user__email')
-    fieldsets = (
-        ('Thông tin công ty', {'fields': ('user', 'name', 'tax_number', 'address')}),
-        ('Trạng thái', {'fields': ('active',)}),
-        ('Ngày tạo', {'fields': ('created_at',), 'classes': ('collapse',)}),
-    )
-    readonly_fields = ('created_at',)
+    inlines = [CandidateProfileInline, CompanyProfileInline]
 
 
 @admin.register(CompanyImage)
@@ -140,3 +121,22 @@ class FollowAdmin(admin.ModelAdmin):
         ('Ngày tạo', {'fields': ('created_at',), 'classes': ('collapse',)}),
     )
     readonly_fields = ('created_at',)
+
+class MyAdminSite(admin.AdminSite):
+    site_header = "PT Jobs Admin Portal"
+    site_title = "PT Jobs Admin Portal"
+    index_title = "Welcome to PT Jobs Admin"
+
+admin_site = MyAdminSite(name='ptjobs_admin')
+
+admin_site.register(User, UserAdmin)
+admin_site.register(CandidateProfile)
+admin_site.register(CompanyProfile)
+admin_site.register(CompanyImage, CompanyImageAdmin)
+admin_site.register(JobCategory, JobCategoryAdmin)
+admin_site.register(JobPost, JobPostAdmin)
+admin_site.register(WorkTime, WorkTimeAdmin)
+admin_site.register(Resume, ResumeAdmin)
+admin_site.register(Application, ApplicationAdmin)
+admin_site.register(Review, ReviewAdmin)
+admin_site.register(Follow, FollowAdmin)
