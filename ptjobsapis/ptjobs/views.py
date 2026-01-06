@@ -3,8 +3,8 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from ptjobs.serializers import ResumeSerializer, FollowSerializer, UserSerializer, JobPostSerializer
-from ptjobs.models import Resume, Follow, JobPost
+from ptjobs.serializers import ResumeSerializer, FollowSerializer, UserSerializer, JobPostSerializer, JobCategorySerializer
+from ptjobs.models import Resume, Follow, JobPost, JobCategory
 
 class UserViewSet(viewsets.ViewSet):
     parser_classes = [MultiPartParser, FormParser]
@@ -69,3 +69,12 @@ class JobPostViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save()
+        
+class JobCategoryViewSet(viewsets.ViewSet):
+    serializer_class = JobCategorySerializer
+    http_method_names = ['get', 'head', 'options']
+
+    def list(self, request):
+        categories = JobCategory.objects.all().order_by('name')
+        serializer = JobCategorySerializer(categories, many=True)
+        return Response(serializer.data)

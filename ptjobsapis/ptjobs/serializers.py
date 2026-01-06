@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from ptjobs.models import JobPost, User, Resume, Follow
+from ptjobs.models import JobPost, User, Resume, Follow, JobCategory
 import cloudinary.uploader
 
 class UserSerializer(serializers.ModelSerializer):
@@ -75,3 +75,20 @@ class JobPostSerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         instance.save()
         return instance
+    
+class JobCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = JobCategory
+        fields = ['id', 'name']
+        
+    def create(self, validated_data):
+        category = JobCategory(**validated_data)
+        category.save()
+        return category
+    
+    def update(self, instance, validated_data):
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
+    
