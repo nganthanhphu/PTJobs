@@ -6,7 +6,7 @@ from . import views
 r = DefaultRouter()
 r.register(r'user', views.UserView, basename='current-user')
 r.register(r'companies', views.CompanyViewSet, basename='companies')
-r.register(r'following', views.CurrentUserFollowViewSet, basename='user-follows')
+r.register(r'following', views.UserFollowViewSet, basename='user-follows')
 r.register(r'jobposts', views.JobPostViewSet, basename='job-posts')
 r.register(r'job-categories', views.JobCategoryViewSet, basename='job-categories')
 r.register(r'applications', views.ApplicationViewSet, basename='applications')

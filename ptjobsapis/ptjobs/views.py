@@ -173,7 +173,7 @@ class CompanyViewSet(viewsets.ModelViewSet):
         serializer.save()
     
         
-class CurrentUserFollowViewSet(viewsets.ModelViewSet):
+class UserFollowViewSet(viewsets.ModelViewSet):
     serializer_class = FollowSerializer
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
@@ -212,7 +212,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     serializer_class = ApplicationSerializer
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
-    http_method_names = ['post', 'delete', 'head', 'options', 'patch']
+    http_method_names = ['get', 'post', 'delete', 'head', 'options', 'patch']
 
     def get_queryset(self):
         return Application.objects.all().order_by('-created_at')
