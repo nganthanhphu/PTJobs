@@ -1,6 +1,6 @@
 from django.forms import ValidationError
 from rest_framework import serializers
-from ptjobs.models import CandidateProfile, CompanyProfile, JobPost, User, Resume, Follow, JobCategory, Application
+from ptjobs.models import CandidateProfile, CompanyProfile, CompanyImage, JobPost, User, Resume, Follow, JobCategory, Application
 import cloudinary.uploader
 
 class CandidateProfileSerializer(serializers.ModelSerializer):
@@ -50,6 +50,27 @@ class UserSerializer(serializers.ModelSerializer):
         if instance.avatar:
             data['avatar'] = instance.avatar.url
         return data
+
+
+class CompanyImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CompanyImage
+        fields = ['id', 'image', 'company', 'created_at']
+        read_only_fields = ['id', 'created_at']
+        
+    def create(self, validated_data):
+        image_file = validated_data.pop('image', None)
+        company_image = CompanyImage(**validated_data)
+        
+        if image_file:
+            upload_result = cloudinary.uploader.upload(
+                image_file,
+                folder='company_images/'
+            )
+            company_image.image = upload_result['secure_url']
+        
+        company_image.save()
+        return company_image
 
 class ResumeSerializer(serializers.ModelSerializer):
     class Meta:
