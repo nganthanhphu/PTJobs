@@ -2,7 +2,8 @@ from django.forms import ValidationError
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
-from .models import User, CandidateProfile, CompanyProfile, Review, Application, CompanyImage
+from .models import User, CandidateProfile, CompanyProfile, Review, Application, CompanyImage, Resume, Follow, JobPost, \
+    JobCategory
 import cloudinary.uploader
 
 
@@ -47,30 +48,31 @@ class CompanyImageSerializer(serializers.ModelSerializer):
         model = CompanyImage
         fields = ['id', 'image', 'company', 'created_at']
         read_only_fields = ['id', 'created_at']
-        
+
     def create(self, validated_data):
         image_file = validated_data.pop('image', None)
         company_image = CompanyImage(**validated_data)
-        
+
         if image_file:
             upload_result = cloudinary.uploader.upload(
                 image_file,
                 folder='company_images/'
             )
             company_image.image = upload_result['secure_url']
-        
+
         company_image.save()
         return company_image
+
 
 class ResumeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Resume
         fields = '__all__'
-    
+
     def create(self, validated_data):
         file = validated_data.pop('file', None)
         resume = Resume(**validated_data)
-        
+
         if file:
             upload_result = cloudinary.uploader.upload(
                 file,
@@ -78,58 +80,63 @@ class ResumeSerializer(serializers.ModelSerializer):
                 folder='resumes/'
             )
             resume.file = upload_result['secure_url']
-        
+
         resume.save()
         return resume
-    
+
+
 class FollowSerializer(serializers.ModelSerializer):
     class Meta:
         model = Follow
         fields = '__all__'
-        
+
     def create(self, validated_data):
         follow = Follow(**validated_data)
         follow.save()
         return follow
-    
+
+
 class JobPostSerializer(serializers.ModelSerializer):
     class Meta:
         model = JobPost
-        fields = ['id', 'name', 'description', 'salary', 'address', 'deadline', 'vacancy', 'company', 'category', 'active', 'created_at']
+        fields = ['id', 'name', 'description', 'salary', 'address', 'deadline', 'vacancy', 'company', 'category',
+                  'active', 'created_at']
         read_only_fields = ['id', 'created_at']
-    
+
     def create(self, validated_data):
         job_post = JobPost(**validated_data)
         job_post.save()
         return job_post
-    
+
     def update(self, instance, validated_data):
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
         return instance
-    
+
+
 class JobCategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = JobCategory
         fields = ['id', 'name']
-        
+
     def create(self, validated_data):
         category = JobCategory(**validated_data)
         category.save()
         return category
-    
+
     def update(self, instance, validated_data):
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
         return instance
-    
+
+
 class ApplicationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Application
         fields = '__all__'
-        
+
     def create(self, validated_data):
         application = Application(**validated_data)
         application.save()
@@ -144,23 +151,6 @@ class CandidateProfileSerializer(serializers.ModelSerializer):
         fields = ['id', 'gender', 'dob', 'user']
 
 
-class CompanyImageSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CompanyImage
-        fields = ['image', 'company']
-        extra_kwargs = {
-            'company': {
-                'write_only': True
-            }
-        }
-
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        if instance.image:
-            data['image'] = instance.image.url
-        return data
-
-
 class CompanyProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     images = CompanyImageSerializer(many=True, read_only=True)
@@ -172,6 +162,7 @@ class CompanyProfileSerializer(serializers.ModelSerializer):
 
 class ReviewSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
+
     class Meta:
         model = Review
         fields = ['id', 'comment', 'user', 'application', 'created_at']
