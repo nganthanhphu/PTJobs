@@ -1,5 +1,5 @@
-from django.forms import ValidationError
 from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
 from ptjobs.models import CandidateProfile, CompanyProfile, CompanyImage, JobPost, User, Resume, Follow, JobCategory, Application
 import cloudinary.uploader
 
