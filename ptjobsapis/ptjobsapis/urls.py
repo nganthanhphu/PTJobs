@@ -1,21 +1,19 @@
 from django.contrib import admin
 from django.urls import path, include, re_path
-from ptjobs.admin import admin_site
-
-from rest_framework import permissions
-from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
+from drf_yasg.views import get_schema_view
+from rest_framework import permissions
 
 schema_view = get_schema_view(
     openapi.Info(
-        title="PT Jobs API",
+        title="PTJobs API",
         default_version='v1',
-        description="APIs for PTJobs",
-        contact=openapi.Contact(email="ou.edu.vn"),
-        license=openapi.License(name="@2025"),
+        description="APIs for PTJobs App",
+        contact=openapi.Contact(email="nganthanhphu@ou.edu.vn"),
+        license=openapi.License(name="Ngàn Thành Phú@2025"),
     ),
     public=True,
-    permission_classes=(permissions.AllowAny,),
+    permission_classes=[permissions.AllowAny]
 )
 
 urlpatterns = [
@@ -32,4 +30,5 @@ urlpatterns = [
             name='schema-redoc'),
     path('o/', include('oauth2_provider.urls',
                        namespace='oauth2_provider')),
+
 ]
