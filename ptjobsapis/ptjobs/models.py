@@ -13,7 +13,7 @@ class BaseModel(models.Model):
 
 class User(AbstractUser):
     avatar = CloudinaryField(null=True)
-    phone = models.CharField(max_length=15, null=False, blank=False, unique=True)
+    phone = models.CharField(max_length=10, null=False, blank=False, unique=True)
 
     class Role(models.TextChoices):
         CANDIDATE = 'CANDIDATE', 'Candidate'
