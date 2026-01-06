@@ -33,6 +33,32 @@ class UserViewSet(viewsets.ViewSet):
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=False, methods=['post', 'get'], url_path='current-user/resumes')
+    def resumes(self, request):
+        candidate_profile = request.user.candidate_profile
+        
+        if request.method == 'POST':
+            serializer = ResumeSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save(candidate=candidate_profile)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        resumes = Resume.objects.filter(candidate=candidate_profile).order_by('-created_at')
+        serializer = ResumeSerializer(resumes, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['delete'], url_path='current-user/resumes/(?P<pk>[^/.]+)')
+    def delete_resume_detail(self, request, pk=None):
+        try:
+            candidate_profile = request.user.candidate_profile
+            resume = Resume.objects.get(pk=pk, candidate=candidate_profile)
+        except Resume.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        
+        resume.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 class CurrentUserResumeViewSet(viewsets.ModelViewSet):
     serializer_class = ResumeSerializer
@@ -41,10 +67,12 @@ class CurrentUserResumeViewSet(viewsets.ModelViewSet):
     http_method_names = ['get', 'post', 'delete', 'head', 'options']
 
     def get_queryset(self):
-        return Resume.objects.filter(user=self.request.user).order_by('-created_at')
+        candidate_profile = self.request.user.candidate_profile
+        return Resume.objects.filter(candidate=candidate_profile).order_by('-created_at')
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        candidate_profile = self.request.user.candidate_profile
+        serializer.save(candidate=candidate_profile)
         
 class CurrentUserFollowViewSet(viewsets.ModelViewSet):
     serializer_class = FollowSerializer
@@ -53,10 +81,12 @@ class CurrentUserFollowViewSet(viewsets.ModelViewSet):
     http_method_names = ['get', 'post', 'delete', 'head', 'options']
 
     def get_queryset(self):
-        return Follow.objects.filter(user=self.request.user).order_by('-created_at')
+        candidate_profile = self.request.user.candidate_profile
+        return Follow.objects.filter(candidate=candidate_profile).order_by('-created_at')
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        candidate_profile = self.request.user.candidate_profile
+        serializer.save(candidate=candidate_profile)
     
 class JobPostViewSet(viewsets.ModelViewSet):
     serializer_class = JobPostSerializer
