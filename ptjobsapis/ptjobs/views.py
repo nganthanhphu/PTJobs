@@ -3,8 +3,8 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from ptjobs.serializers import ResumeSerializer, FollowSerializer, UserSerializer
-from ptjobs.models import Resume, Follow
+from ptjobs.serializers import ResumeSerializer, FollowSerializer, UserSerializer, JobPostSerializer
+from ptjobs.models import Resume, Follow, JobPost
 
 class UserViewSet(viewsets.ViewSet):
     parser_classes = [MultiPartParser, FormParser]
@@ -58,3 +58,14 @@ class CurrentUserFollowViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
     
+class JobPostViewSet(viewsets.ModelViewSet):
+    serializer_class = JobPostSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+    http_method_names = ['get', 'post', 'delete', 'head', 'options', 'patch']
+
+    def get_queryset(self):
+        return JobPost.objects.all().order_by('-created_at')
+
+    def perform_create(self, serializer):
+        serializer.save()

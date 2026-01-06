@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from ptjobs.models import User, Resume, Follow
+from ptjobs.models import JobPost, User, Resume, Follow
 import cloudinary.uploader
 
 class UserSerializer(serializers.ModelSerializer):
@@ -49,7 +49,7 @@ class ResumeSerializer(serializers.ModelSerializer):
         resume.save()
         return resume
     
-class FollowSerializer(serializers.Serializer):
+class FollowSerializer(serializers.ModelSerializer):
     class Meta:
         model = Follow
         fields = '__all__'
@@ -59,6 +59,19 @@ class FollowSerializer(serializers.Serializer):
         follow.save()
         return follow
     
-    def delete(self, instance):
-        instance.delete()
+class JobPostSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = JobPost
+        fields = ['id', 'name', 'description', 'salary', 'address', 'deadline', 'vacancy', 'company', 'category', 'active', 'created_at']
+        read_only_fields = ['id', 'created_at']
+    
+    def create(self, validated_data):
+        job_post = JobPost(**validated_data)
+        job_post.save()
+        return job_post
+    
+    def update(self, instance, validated_data):
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
         return instance

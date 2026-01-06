@@ -7,6 +7,7 @@ r = DefaultRouter()
 r.register(r'user', views.UserViewSet, basename='current-user')
 r.register(r'resumes', views.CurrentUserResumeViewSet, basename='user-resumes')
 r.register(r'following', views.CurrentUserFollowViewSet, basename='user-follows')
+r.register(r'jobposts', views.JobPostViewSet, basename='job-posts')
 
 urlpatterns = [
     path('', include(r.urls))
