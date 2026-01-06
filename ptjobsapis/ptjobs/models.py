@@ -39,6 +39,7 @@ class CandidateProfile(BaseModel):
 
 
 class CompanyProfile(BaseModel):
+    active = models.BooleanField(default=False)
     name = models.CharField(max_length=255, null=False, blank=False, unique=True)
     tax_number = models.CharField(max_length=50, null=False, blank=False, unique=True)
     address = models.CharField(max_length=255, blank=True)
@@ -47,7 +48,7 @@ class CompanyProfile(BaseModel):
 
 class CompanyImage(BaseModel):
     image = CloudinaryField()
-    company = models.ForeignKey(CompanyProfile, on_delete=models.CASCADE)
+    company = models.ForeignKey(CompanyProfile, on_delete=models.CASCADE, related_name='images')
 
 
 class Resume(BaseModel):

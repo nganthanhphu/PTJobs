@@ -1,19 +1,7 @@
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
-from .models import User, CandidateProfile, CompanyProfile
-
-
-class CandidateProfileSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CandidateProfile
-        fields = ['id', 'gender', 'dob']
-
-
-class CompanyProfileSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CompanyProfile
-        fields = ['id', 'name', 'tax_number', 'address']
+from .models import User, CandidateProfile, CompanyProfile, Review, Application, CompanyImage
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -21,8 +9,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['username', 'password', 'first_name', 'last_name', 'email', 'phone', 'role', 'avatar',
-                  'profile', 'old_password']
+        fields = ['username', 'password', 'first_name', 'last_name', 'email', 'phone', 'role', 'avatar', 'old_password']
         extra_kwargs = {
             'password': {
                 'write_only': True
@@ -51,3 +38,69 @@ class UserSerializer(serializers.ModelSerializer):
         if instance.avatar:
             data['avatar'] = instance.avatar.url
         return data
+
+
+class CandidateProfileSerializer(serializers.ModelSerializer):
+    user = UserSerializer(read_only=True)
+
+    class Meta:
+        model = CandidateProfile
+        fields = ['id', 'gender', 'dob', 'user']
+
+
+class CompanyImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CompanyImage
+        fields = ['image', 'company']
+        extra_kwargs = {
+            'company': {
+                'write_only': True
+            }
+        }
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.image:
+            data['image'] = instance.image.url
+        return data
+
+
+class CompanyProfileSerializer(serializers.ModelSerializer):
+    user = UserSerializer(read_only=True)
+    images = CompanyImageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = CompanyProfile
+        fields = ['id', 'name', 'tax_number', 'address', 'user', 'images']
+
+
+class ReviewSerializer(serializers.ModelSerializer):
+    user = UserSerializer(read_only=True)
+    class Meta:
+        model = Review
+        fields = ['id', 'comment', 'user', 'application', 'created_at']
+        extra_kwargs = {
+            'application': {
+                'write_only': True
+            }
+        }
+
+    def update(self, instance, validated_data):
+        keys = set(validated_data.keys())
+        if keys - {'comment'}:
+            raise ValidationError('Invalid fields for update')
+        return super().update(instance, validated_data)
+
+
+class TreeReviewSerializer(ReviewSerializer):
+    user = UserSerializer(read_only=True)
+    parent = ReviewSerializer(read_only=True)
+
+    class Meta:
+        model = Review
+        fields = ['id', 'comment', 'user', 'application', 'created_at', 'parent']
+        extra_kwargs = {
+            'application': {
+                'write_only': True
+            }
+        }
