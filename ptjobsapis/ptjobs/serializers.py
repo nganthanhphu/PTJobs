@@ -1,9 +1,10 @@
 from django.forms import ValidationError
+from django.views.generic.dates import timezone_today
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
 from .models import User, CandidateProfile, CompanyProfile, Review, Application, CompanyImage, Resume, Follow, JobPost, \
-    JobCategory
+    JobCategory, WorkTime
 import cloudinary.uploader
 
 
@@ -67,7 +68,12 @@ class CompanyImageSerializer(serializers.ModelSerializer):
 class ResumeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Resume
-        fields = '__all__'
+        fields = ['id','file', 'candidate']
+        extra_kwargs = {
+            'id': {
+                'read_only': True
+            }
+        }
 
     def create(self, validated_data):
         file = validated_data.pop('file', None)
@@ -88,7 +94,15 @@ class ResumeSerializer(serializers.ModelSerializer):
 class FollowSerializer(serializers.ModelSerializer):
     class Meta:
         model = Follow
-        fields = '__all__'
+        fields = ['id', 'created_at', 'candidate', 'company']
+        extra_kwargs = {
+            'id': {
+                'read_only': True
+            },
+            'created_at': {
+                'read_only': True
+            }
+        }
 
     def create(self, validated_data):
         follow = Follow(**validated_data)
@@ -96,12 +110,23 @@ class FollowSerializer(serializers.ModelSerializer):
         return follow
 
 
+class WorkTimeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkTime
+        fields = ['day', 'start_time', 'end_time', 'job_post']
+
+
 class JobPostSerializer(serializers.ModelSerializer):
     class Meta:
         model = JobPost
         fields = ['id', 'name', 'description', 'salary', 'address', 'deadline', 'vacancy', 'company', 'category',
-                  'active', 'created_at']
+                  'created_at', 'active']
         read_only_fields = ['id', 'created_at']
+        extra_kwargs = {
+            'active': {
+                'write_only': True
+            }
+        }
 
     def create(self, validated_data):
         job_post = JobPost(**validated_data)
@@ -109,6 +134,9 @@ class JobPostSerializer(serializers.ModelSerializer):
         return job_post
 
     def update(self, instance, validated_data):
+        if 'company' in validated_data:
+            raise ValidationError('Invalid field for update')
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
@@ -135,25 +163,32 @@ class JobCategorySerializer(serializers.ModelSerializer):
 class ApplicationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Application
-        fields = '__all__'
+        fields = ['id', 'start_date', 'end_date', 'status', 'resume', 'candidate', 'job_post']
+        extra_kwargs = {
+            'id': {
+                'read_only': True
+            }
+        }
 
     def create(self, validated_data):
         application = Application(**validated_data)
         application.save()
         return application
 
+    def validate(self, attrs):
+        job_post = attrs.get('job_post')
+        if job_post.deadline < timezone_today() and job_post.vacancy <= 0:
+            raise ValidationError('Invalid job post for application')
+        return attrs
+
 
 class CandidateProfileSerializer(serializers.ModelSerializer):
-    user = UserSerializer(read_only=True)
-
     class Meta:
         model = CandidateProfile
         fields = ['id', 'gender', 'dob', 'user']
 
 
 class CompanyProfileSerializer(serializers.ModelSerializer):
-    user = UserSerializer(read_only=True)
-    images = CompanyImageSerializer(many=True, read_only=True)
 
     class Meta:
         model = CompanyProfile
@@ -161,12 +196,17 @@ class CompanyProfileSerializer(serializers.ModelSerializer):
 
 
 class ReviewSerializer(serializers.ModelSerializer):
-    user = UserSerializer(read_only=True)
 
     class Meta:
         model = Review
         fields = ['id', 'comment', 'user', 'application', 'created_at']
         extra_kwargs = {
+            'id': {
+                'read_only': True
+            },
+            'created_at': {
+                'read_only': True
+            },
             'application': {
                 'write_only': True
             }
@@ -178,16 +218,3 @@ class ReviewSerializer(serializers.ModelSerializer):
             raise ValidationError('Invalid fields for update')
         return super().update(instance, validated_data)
 
-
-class TreeReviewSerializer(ReviewSerializer):
-    user = UserSerializer(read_only=True)
-    parent = ReviewSerializer(read_only=True)
-
-    class Meta:
-        model = Review
-        fields = ['id', 'comment', 'user', 'application', 'created_at', 'parent']
-        extra_kwargs = {
-            'application': {
-                'write_only': True
-            }
-        }
