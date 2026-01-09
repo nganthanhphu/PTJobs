@@ -275,6 +275,9 @@ class JobPostViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAP
         if isinstance(work_times_data, str):
             work_times_data = json.loads(work_times_data)
 
+        if not work_times_data:
+            raise ValidationError("Work time is required")
+
         serializer = JobPostSerializer(data=data)
         serializer.is_valid(raise_exception=True)
         job_post = serializer.save(company=company_profile)
