@@ -220,6 +220,7 @@ class JobPostViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAP
     serializer_class = JobPostSerializer
     queryset = JobPost.objects.filter(active=True, company__active=True).select_related('company', 'category').order_by(
         '-created_at')
+    pagination_class = paginators.ItemPaginator
 
     def get_permissions(self):
         if self.action in ['create', 'partial_update', 'destroy']:
