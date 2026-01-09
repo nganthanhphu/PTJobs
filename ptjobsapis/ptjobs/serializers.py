@@ -203,7 +203,7 @@ class CompanyProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CompanyProfile
-        fields = ['id', 'name', 'tax_number', 'address', 'user', 'images']
+        fields = ['id', 'name', 'tax_number', 'address', 'user']
         extra_kwargs = {
             'user': {
                 'write_only': True
