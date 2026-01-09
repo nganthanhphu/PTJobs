@@ -32,23 +32,23 @@ class UserView(viewsets.ViewSet, generics.CreateAPIView):
         if isinstance(profile_data, list):
             profile_data = profile_data[0]
         profile_data = json.loads(profile_data) if profile_data and isinstance(profile_data, str) else None
+        if not profile_data:
+            raise ValidationError("Profile data is required")
 
         s = UserSerializer(data=data)
         s.is_valid(raise_exception=True)
         user = s.save()
         res_data = s.data
 
-        if profile_data:
-            serializer_class = RoleMapper.get_serializer(user.role)
-            if serializer_class:
-                p = serializer_class(data=profile_data)
-                p.is_valid(raise_exception=True)
-                p.save(user=user)
-                res_data['profile'] = p.data
-            else:
-                raise ValidationError("This user type cannot have a profile")
+        serializer_class = RoleMapper.get_serializer(user.role)
+        if serializer_class:
+            profile_data['user'] = user.id
+            p = serializer_class(data=profile_data)
+            p.is_valid(raise_exception=True)
+            p.save(user=user)
+            res_data['profile'] = p.data
         else:
-            raise ValidationError("Profile data is required")
+            raise ValidationError("This user type cannot have a profile")
 
         return Response(res_data, status=status.HTTP_201_CREATED)
 
@@ -87,7 +87,7 @@ class UserView(viewsets.ViewSet, generics.CreateAPIView):
             if serializer_class:
                 profile = serializer_class(user.profile).data
             else:
-                raise NotFound("This user type cannot and doesx not have a profile")
+                raise NotFound("This user type cannot and does not have a profile")
         res_data['profile'] = profile
 
         return Response(res_data, status=status.HTTP_200_OK)
