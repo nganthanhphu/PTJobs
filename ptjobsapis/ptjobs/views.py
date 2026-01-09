@@ -95,7 +95,7 @@ class UserView(viewsets.ViewSet, generics.CreateAPIView):
 
 class ResumeViewSet(viewsets.GenericViewSet, generics.ListAPIView):
     serializer_class = ResumeSerializer
-    permission_classes = [perms.IsCandidateUser, perms.IsResumeOwner]
+    permission_classes = [perms.IsResumeOwner]
     parser_classes = [MultiPartParser, FormParser]
     pagination_class = paginators.ItemPaginator
     queryset = Resume.objects.filter(active=True).order_by('-created_at')
@@ -109,26 +109,19 @@ class ResumeViewSet(viewsets.GenericViewSet, generics.ListAPIView):
         except AttributeError:
             raise PermissionDenied()
 
-    def create(self, request):
+    def create(self, request, *args, **kwargs):
         try:
-            candidate_profile = request.user.candidate_profile
+            candidate_profile = self.request.user.candidate_profile
         except AttributeError:
             raise PermissionDenied()
 
-        serializer = ResumeSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save(candidate=candidate_profile)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    def destroy(self, request, pk=None):
-        try:
-            candidate_profile = request.user.candidate_profile
-            resume = Resume.objects.get(pk=pk, candidate=candidate_profile)
-        except AttributeError:
-            raise PermissionDenied()
-        except Resume.DoesNotExist:
-            raise NotFound('Resume not found')
-
+    def destroy(self, request, *args, **kwargs):
+        resume = self.get_object()
         setattr(resume, 'active', False)
         resume.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -136,7 +129,7 @@ class ResumeViewSet(viewsets.GenericViewSet, generics.ListAPIView):
 
 class CompanyImageViewSet(viewsets.GenericViewSet, generics.ListAPIView):
     serializer_class = CompanyImageSerializer
-    permission_classes = [perms.IsCompanyUser, perms.IsCompanyImageOwner]
+    permission_classes = [perms.IsCompanyImageOwner]
     parser_classes = [MultiPartParser, FormParser]
     queryset = CompanyImage.objects.filter(active=True)
 
@@ -149,27 +142,24 @@ class CompanyImageViewSet(viewsets.GenericViewSet, generics.ListAPIView):
         except AttributeError:
             return query.none()
 
-    def create(self, request):
+    def create(self, request, *args, **kwargs):
         try:
             company_profile = request.user.company_profile
         except AttributeError:
             raise PermissionDenied()
         data = request.data.copy()
         data['company'] = company_profile.id
-        serializer = CompanyImageSerializer(data=data)
+        serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    def destroy(self, request, pk=None):
+    def destroy(self, request, *args, **kwargs):
         try:
             company_profile = request.user.company_profile
-            image = CompanyImage.objects.get(pk=pk, company=company_profile)
         except AttributeError:
             raise PermissionDenied()
-        except CompanyImage.DoesNotExist:
-            raise NotFound('Company image not found')
-
+        image = self.get_object()
         image.delete()
         if CompanyImage.objects.filter(company=company_profile).count() < 3:
             company_profile.active = False
@@ -179,12 +169,12 @@ class CompanyImageViewSet(viewsets.GenericViewSet, generics.ListAPIView):
 
 class FollowViewSet(viewsets.GenericViewSet, generics.DestroyAPIView):
     serializer_class = serializers.FollowSerializer
-    permission_classes = [perms.IsCandidateUser, perms.IsFollowingOwner]
+    permission_classes = [perms.IsFollowingOwner]
     queryset = Follow.objects.all().order_by('-created_at')
 
     def list(self, request):
         try:
-            candidate_profile = request.user.candidate_profile
+            candidate_profile = self.request.user.candidate_profile
         except AttributeError:
             raise PermissionDenied()
 
@@ -204,7 +194,7 @@ class FollowViewSet(viewsets.GenericViewSet, generics.DestroyAPIView):
 
         return Response(data)
 
-    def create(self, request):
+    def create(self, request, *args, **kwargs):
         if not request.user.email:
             raise ValidationError("User must have an email to follow companies")
         try:
@@ -219,15 +209,15 @@ class FollowViewSet(viewsets.GenericViewSet, generics.DestroyAPIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
-class JobPostViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIView):
+class JobPostViewSet(viewsets.ViewSet, generics.ListAPIView):
     serializer_class = JobPostSerializer
-    queryset = JobPost.objects.filter(active=True, company__active=True).select_related('company', 'category').order_by(
-        '-created_at')
+    queryset = JobPost.objects.filter(active=True, company__active=True).order_by(
+        '-created_at').prefetch_related('work_times')
     pagination_class = paginators.ItemPaginator
 
     def get_permissions(self):
         if self.action in ['create', 'partial_update', 'destroy']:
-            return [perms.IsCompanyUser(), perms.IsJobPostOwner()]
+            return [perms.IsJobPostOwner()]
         return [permissions.AllowAny()]
 
     def get_queryset(self):
@@ -259,7 +249,7 @@ class JobPostViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAP
         return queryset
 
     @transaction.atomic
-    def create(self, request):
+    def create(self, request, *args, **kwargs):
 
         try:
             company_profile = request.user.company_profile
@@ -277,54 +267,62 @@ class JobPostViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAP
 
         if not work_times_data:
             raise ValidationError("Work time is required")
-
-        serializer = JobPostSerializer(data=data)
+        data['company'] = company_profile.id
+        serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
-        job_post = serializer.save(company=company_profile)
+        job_post = serializer.save()
 
         for work_time in work_times_data:
+            work_time['job_post'] = job_post.id
             work_time_serializer = WorkTimeSerializer(data=work_time)
             work_time_serializer.is_valid(raise_exception=True)
-            work_time_serializer.save(job_post=job_post)
+            work_time_serializer.save()
         utils.EmailService.notify_via_email(job_post)
         return Response(JobPostSerializer(job_post).data, status=status.HTTP_201_CREATED)
 
-    @transaction.atomic
-    def partial_update(self, request, pk=None):
+    def retrieve(self, request, pk=None):
         try:
-            company_profile = request.user.company_profile
-            job_post = JobPost.objects.get(pk=pk, company=company_profile)
-        except AttributeError:
-            raise PermissionDenied()
+            job_post = JobPost.objects.prefetch_related('work_times').select_related('company', 'company__user').get(
+                pk=pk, active=True, company__active=True)
         except JobPost.DoesNotExist:
             raise NotFound('Job post not found')
+        serializer = self.get_serializer(job_post)
+        data = serializer.data
+        company_name = job_post.company.name
+        company_avatar = job_post.company.user.avatar.url if job_post.company.user.avatar else None
+        data['company'] = {
+            'name': company_name,
+            'avatar': company_avatar
+        }
+        work_times = job_post.work_times.all()
+        work_times_data = WorkTimeSerializer(work_times, many=True).data
+        data['work_times'] = work_times_data
 
+        return Response(data, status=status.HTTP_200_OK)
+
+    @transaction.atomic
+    def partial_update(self, request, *args, **kwargs):
+        job_post = self.get_object()
         data = request.data.copy()
         work_times_data = data.pop('work_times', None)
-
         if isinstance(work_times_data, str):
             work_times_data = json.loads(work_times_data)
 
         serializer = JobPostSerializer(job_post, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        job_post = serializer.save()
         if work_times_data is not None:
             WorkTime.objects.filter(job_post=job_post).delete()
             for work_time_data in work_times_data:
+                work_time_data['job_post'] = job_post.id
                 work_time_serializer = WorkTimeSerializer(data=work_time_data)
                 work_time_serializer.is_valid(raise_exception=True)
                 work_time_serializer.save(job_post=job_post)
 
         return Response(JobPostSerializer(job_post).data, status=status.HTTP_200_OK)
 
-    def destroy(self, request, pk=None):
-        try:
-            company_profile = request.user.company_profile
-            job_post = JobPost.objects.get(pk=pk, company=company_profile)
-        except AttributeError:
-            raise PermissionDenied()
-        except JobPost.DoesNotExist:
-            raise NotFound('Job post not found')
+    def destroy(self, request, *args, **kwargs):
+        job_post = self.get_object()
 
         job_post.active = False
         job_post.save()
@@ -343,19 +341,22 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
     def get_permissions(self):
         if self.action.__eq__('create'):
             return [perms.IsCandidateUser()]
-        elif self.action.__eq__('partial_update'):
-            return [perms.IsCompanyUser()]
-        else:
-            return [permissions.IsAuthenticated()]
+        if self.action.__eq__('partial_update'):
+            return [perms.IsApplicationBelongToCompanyUser()]
+        if self.action.__eq__('destroy'):
+            return [perms.IsApplicationOwner()]
+        
+        return [permissions.IsAuthenticated()]
 
     def get_queryset(self):
         QUERYSET = {
             'CANDIDATE': Application.objects.filter(active=True, candidate__user=self.request.user).select_related(
-                'job_post', 'job_post__company', 'job_post__company__user'),
+                'job_post', 'job_post__company', 'job_post__company__user', 'resume'),
             'COMPANY': Application.objects.filter(active=True,
                                                   job_post__company__user=self.request.user).select_related('job_post',
                                                                                                             'candidate',
-                                                                                                            'candidate__user')
+                                                                                                            'candidate__user',
+                                                                                                            'resume')
         }
         user = self.request.user
         query = QUERYSET.get(user.role)
@@ -365,7 +366,7 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
             query = query.select_related('resume')
         return query
 
-    def create(self, request):
+    def create(self, request, *args, **kwargs):
         try:
             candidate_profile = request.user.candidate_profile
         except AttributeError:
@@ -376,19 +377,47 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
         serializer.save(candidate=candidate_profile)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    def retrieve(self, request, pk=None):
-        try:
-            application = self.get_queryset().get(pk=pk)
-        except Application.DoesNotExist:
-            raise NotFound('Application not found')
+    def candidate_retrieve(self, request, *args, **kwargs):
+        application = self.get_object()
         serializer = ApplicationSerializer(application)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        data = serializer.data
+        company_name = application.job_post.company.name
+        company_avatar = application.job_post.company.user.avatar.url if application.job_post.company.user.avatar else None
+        data['company'] = {
+            'name': company_name,
+            'avatar': company_avatar
+        }
+        resume_url = application.resume.url if application.resume else None
+        data['resume'] = resume_url
+        return Response(data, status=status.HTTP_200_OK)
+    
+    def company_retrieve(self, request, *args, **kwargs):
+        application = self.get_object()
+        serializer = ApplicationSerializer(application)
+        data = serializer.data
+        candidate_name = application.candidate.user.get_full_name()
+        candidate_avatar = application.candidate.user.avatar.url if application.candidate.user.avatar else None
+        data['candidate'] = {
+            'name': candidate_name,
+            'avatar': candidate_avatar
+        }
+        resume_url = application.resume.url if application.resume else None
+        data['resume'] = resume_url
+        return Response(data, status=status.HTTP_200_OK)
 
-    def partial_update(self, request, pk=None):
-        try:
-            application = self.get_queryset().get(pk=pk)
-        except Application.DoesNotExist:
-            raise NotFound('Application not found')
+    def retrieve(self, request, *args, **kwargs):
+        RETRIEVE_METHODS = {
+            'CANDIDATE': self.candidate_retrieve,
+            'COMPANY': self.company_retrieve
+        }
+        retrieve_method = RETRIEVE_METHODS.get(request.user.role)
+        if not retrieve_method:
+            raise PermissionDenied()
+        return retrieve_method(request, *args, **kwargs)
+
+
+    def partial_update(self, request, *args, **kwargs):
+        application = self.get_object()
 
         new_status = request.data.get('status', None)
         if not new_status:
@@ -424,8 +453,16 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
         serializer = ApplicationSerializer(application)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    def destroy(self, request, *args, **kwargs):
+        application = self.get_object()
+        if application.status != Application.JobStatus.REVIEWING:
+            raise ValidationError('Only reviewing applications can be deleted')
+        application.active = False
+        application.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     @action(methods=['get'], url_path='reviews', detail=True)
-    def get_reviews(self, request, pk):
+    def get_reviews(self, request, *args, **kwargs):
         application = self.get_object()
         reviews = Review.objects.filter(
             application=application,
@@ -544,7 +581,7 @@ class ReviewView(viewsets.GenericViewSet, generics.DestroyAPIView):
     queryset = Review.objects.filter(active=True)
     permission_classes = [IsReviewOwner]
 
-    def partial_update(self, request, pk=None):
+    def partial_update(self, request, *args, **kwargs):
         review = self.get_object()
         s = self.get_serializer(review, data=request.data, partial=True)
         s.is_valid(raise_exception=True)
