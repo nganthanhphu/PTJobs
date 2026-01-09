@@ -2,7 +2,7 @@ import datetime
 import json
 
 from django.db import transaction
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Count, Q
 from django.forms import ValidationError
 from rest_framework import viewsets, generics, parsers, permissions, status
 from rest_framework.decorators import action
@@ -339,6 +339,45 @@ class JobPostViewSet(viewsets.ViewSet, generics.ListAPIView):
         job_post.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @action(methods=['get'], url_path='reviews', detail=True)
+    def get_reviews(self, request, *args, **kwargs):
+        job_post = self.get_object()
+        reviews = Review.objects.filter(
+            application__job_post=job_post,
+            active=True,
+            parent__isnull=False
+        ).select_related('user', 'user__company_profile', 'user__candidate_profile', 'parent',
+                         'parent__user', 'parent__user__company_profile', 'parent__user__candidate_profile')
+
+        paginator = paginators.ItemPaginator()
+        paginated_reviews = paginator.paginate_queryset(reviews, request)
+
+        data = serializers.ReviewSerializer(paginated_reviews, many=True).data
+        for i in range(len(data)):
+            reviewer = paginated_reviews[i].user
+            if reviewer.role == User.Role.COMPANY:
+                reviewer_name = reviewer.company_profile.name
+            else:
+                reviewer_name = reviewer.get_full_name()
+            reviewer_avatar = reviewer.avatar.url if reviewer.avatar else None
+            data[i]['user'] = {
+                'name': reviewer_name,
+                'avatar': reviewer_avatar
+            }
+            if paginated_reviews[i].parent:
+                parent_data = ReviewSerializer(paginated_reviews[i].parent).data
+                data[i]['parent'] = parent_data
+                if paginated_reviews[i].parent.user.role == User.Role.COMPANY:
+                    parent_reviewer_name = paginated_reviews[i].parent.user.company_profile.name
+                else:
+                    parent_reviewer_name = paginated_reviews[i].parent.user.get_full_name()
+                parent_reviewer_avatar = paginated_reviews[i].parent.user.avatar.url if paginated_reviews[i].parent.user.avatar else None
+                data[i]['parent']['user'] = {
+                    'name': parent_reviewer_name,
+                    'avatar': parent_reviewer_avatar
+                }
+        return paginator.get_paginated_response(data)
+
 
 class JobCategoryViewSet(viewsets.ViewSet, generics.ListAPIView):
     serializer_class = JobCategorySerializer
@@ -356,7 +395,7 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
             return [perms.IsApplicationBelongToCompanyUser()]
         if self.action.__eq__('destroy'):
             return [perms.IsApplicationOwner()]
-        
+
         return [permissions.IsAuthenticated()]
 
     def get_queryset(self):
@@ -375,6 +414,8 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
             raise PermissionDenied()
         if self.action.__eq__('retrieve'):
             query = query.select_related('resume')
+        if self.action.__eq__('create_review'):
+            query = query.prefetch_related('reviews')
         return query
 
     def create(self, request, *args, **kwargs):
@@ -401,7 +442,7 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
         resume_url = application.resume.url if application.resume else None
         data['resume'] = resume_url
         return Response(data, status=status.HTTP_200_OK)
-    
+
     def company_retrieve(self, request, *args, **kwargs):
         application = self.get_object()
         serializer = ApplicationSerializer(application)
@@ -425,7 +466,6 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
         if not retrieve_method:
             raise PermissionDenied()
         return retrieve_method(request, *args, **kwargs)
-
 
     def partial_update(self, request, *args, **kwargs):
         application = self.get_object()
@@ -476,17 +516,22 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
         application.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @action(methods=['get'], url_path='reviews', detail=True)
+    @action(methods=['get'], url_path='reviews', detail=True, permission_classes=[permissions.IsAuthenticated])
     def get_reviews(self, request, *args, **kwargs):
         application = self.get_object()
         reviews = Review.objects.filter(
             application=application,
-            active=True
+            active=True,
+            parent__isnull=False
         ).select_related('user', 'user__company_profile', 'user__candidate_profile', 'application', 'parent',
                          'parent__user', 'parent__user__company_profile', 'parent__user__candidate_profile')
-        data = serializers.ReviewSerializer(reviews, many=True).data
+
+        paginator = paginators.ItemPaginator()
+        paginated_reviews = paginator.paginate_queryset(reviews, request)
+
+        data = serializers.ReviewSerializer(paginated_reviews, many=True).data
         for i in range(len(data)):
-            reviewer = reviews[i].user
+            reviewer = paginated_reviews[i].user
             if reviewer.role == User.Role.COMPANY:
                 reviewer_name = reviewer.company_profile.name
             else:
@@ -496,25 +541,65 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
                 'name': reviewer_name,
                 'avatar': reviewer_avatar
             }
-            if reviews[i].parent:
-                parent_data = ReviewSerializer(reviews[i].parent).data
+            if paginated_reviews[i].parent:
+                parent_data = ReviewSerializer(paginated_reviews[i].parent).data
                 data[i]['parent'] = parent_data
-                if reviews[i].parent.user.role == User.Role.COMPANY:
-                    parent_reviewer_name = reviews[i].parent.user.company_profile.name
+                if paginated_reviews[i].parent.user.role == User.Role.COMPANY:
+                    parent_reviewer_name = paginated_reviews[i].parent.user.company_profile.name
                 else:
-                    parent_reviewer_name = reviews[i].parent.user.get_full_name()
-                parent_reviewer_avatar = reviews[i].parent.user.avatar.url if reviews[i].parent.user.avatar else None
+                    parent_reviewer_name = paginated_reviews[i].parent.user.get_full_name()
+                parent_reviewer_avatar = paginated_reviews[i].parent.user.avatar.url if paginated_reviews[i].parent.user.avatar else None
                 data[i]['parent']['user'] = {
                     'name': parent_reviewer_name,
                     'avatar': parent_reviewer_avatar
                 }
-        return Response(data, status=status.HTTP_200_OK)
+        return paginator.get_paginated_response(data)
+
+    @transaction.atomic
+    @action(methods=['post'], url_path='reviews', detail=True,
+            permission_classes=[perms.IsApplicationOwner | perms.IsApplicationBelongToCompanyUser])
+    def create_review(self, request, *args, **kwargs):
+        application = self.get_object()
+        old_reviews = [review for review in application.reviews.all()]
+
+        if len(old_reviews) == 2:
+            raise ValidationError('An application can have at two reviews')
+
+        data = request.data.copy()
+        data['application'] = application.id
+        data['user'] = request.user.id
+
+        serializer = ReviewSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        review = serializer.save()
+        if old_reviews:
+            review.parent = old_reviews[0]
+            review.save()
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 class CompanyView(viewsets.GenericViewSet, generics.RetrieveAPIView):
     serializer_class = serializers.CompanyProfileSerializer
     queryset = CompanyProfile.objects.filter(active=True).select_related('user').prefetch_related(
         Prefetch('images', queryset=CompanyImage.objects.filter(active=True)))
+
+    def list(self, request, *args, **kwargs):
+        companies = self.get_queryset().annotate(
+            job_post_count=Count('job_posts', filter=Q(job_posts__active=True))
+        )
+        paginator = paginators.ItemPaginator()
+        paginated_companies = paginator.paginate_queryset(companies, request)
+
+        data = serializers.CompanyProfileSerializer(paginated_companies, many=True).data
+        for i in range(len(data)):
+            company = paginated_companies[i]
+            image_urls = [image.image.url for image in company.images.all()]
+            data[i]['avatar'] = company.user.avatar.url if company.user.avatar else None
+            data[i]['images'] = image_urls
+            data[i]['job_post_count'] = company.job_post_count
+
+        return paginator.get_paginated_response(data)
 
     def retrieve(self, request, *args, **kwargs):
         company = self.get_object()
@@ -537,14 +622,18 @@ class CompanyView(viewsets.GenericViewSet, generics.RetrieveAPIView):
             user__role=User.Role.CANDIDATE,
             active=True
         ).select_related('user', 'application', 'application__job_post')
-        data = serializers.ReviewSerializer(reviews, many=True).data
+
+        paginator = paginators.ItemPaginator()
+        paginated_reviews = paginator.paginate_queryset(reviews, request)
+
+        data = serializers.ReviewSerializer(paginated_reviews, many=True).data
         for i in range(len(data)):
-            job_name = reviews[i].application.job_post.name
-            reviewer_name = reviews[i].user.get_full_name()
-            reviewer_avatar = reviews[i].user.avatar.url if reviews[i].user.avatar else None
-            start_date = reviews[i].application.start_date.strftime('%d/%m/%Y') if reviews[
+            job_name = paginated_reviews[i].application.job_post.name
+            reviewer_name = paginated_reviews[i].user.get_full_name()
+            reviewer_avatar = paginated_reviews[i].user.avatar.url if paginated_reviews[i].user.avatar else None
+            start_date = paginated_reviews[i].application.start_date.strftime('%d/%m/%Y') if paginated_reviews[
                 i].application.start_date else None
-            end_date = reviews[i].application.end_date.strftime('%d/%m/%Y') if reviews[i].application.end_date else None
+            end_date = paginated_reviews[i].application.end_date.strftime('%d/%m/%Y') if paginated_reviews[i].application.end_date else None
             data[i]['job_post'] = {
                 'name': job_name
             }
@@ -556,7 +645,7 @@ class CompanyView(viewsets.GenericViewSet, generics.RetrieveAPIView):
                 'start_date': start_date,
                 'end_date': end_date
             }
-        return Response(data, status=status.HTTP_200_OK)
+        return paginator.get_paginated_response(data)
 
 
 class CandidateView(viewsets.GenericViewSet, generics.RetrieveAPIView):
@@ -580,15 +669,19 @@ class CandidateView(viewsets.GenericViewSet, generics.RetrieveAPIView):
             user__role=User.Role.COMPANY,
             active=True
         ).select_related('user', 'user__company_profile')
-        data = serializers.ReviewSerializer(reviews, many=True).data
+
+        paginator = paginators.ItemPaginator()
+        paginated_reviews = paginator.paginate_queryset(reviews, request)
+
+        data = serializers.ReviewSerializer(paginated_reviews, many=True).data
         for i in range(len(data)):
-            reviewer_name = reviews[i].user.company_profile.name
-            reviewer_avatar = reviews[i].user.avatar.url if reviews[i].user.avatar else None
+            reviewer_name = paginated_reviews[i].user.company_profile.name
+            reviewer_avatar = paginated_reviews[i].user.avatar.url if paginated_reviews[i].user.avatar else None
             data[i]['user'] = {
                 'name': reviewer_name,
                 'avatar': reviewer_avatar
             }
-        return Response(data, status=status.HTTP_200_OK)
+        return paginator.get_paginated_response(data)
 
 
 class ReviewView(viewsets.GenericViewSet, generics.DestroyAPIView):
