@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"name": "PTJobs APIs (Django)",
+			"path": "ptjobsapis"
+		},
+		{
+			"name": "PTJobs Mobile App (React Native)",
+			"path": "ptjobsmobileapp"
+		}
+	],
+	"settings": {}
+}
