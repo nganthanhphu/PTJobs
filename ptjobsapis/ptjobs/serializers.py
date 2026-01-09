@@ -192,6 +192,11 @@ class CandidateProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = CandidateProfile
         fields = ['id', 'gender', 'dob', 'user']
+        extra_kwargs = {
+            'user': {
+                'write_only': True
+            }
+        }
 
 
 class CompanyProfileSerializer(serializers.ModelSerializer):
@@ -199,6 +204,11 @@ class CompanyProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = CompanyProfile
         fields = ['id', 'name', 'tax_number', 'address', 'user', 'images']
+        extra_kwargs = {
+            'user': {
+                'write_only': True
+            }
+        }
 
 
 class ReviewSerializer(serializers.ModelSerializer):
