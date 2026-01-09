@@ -67,21 +67,6 @@ class ResumeSerializer(serializers.ModelSerializer):
             }
         }
 
-    def create(self, validated_data):
-        file = validated_data.pop('file', None)
-        resume = Resume(**validated_data)
-
-        if file:
-            upload_result = cloudinary.uploader.upload(
-                file,
-                resource_type='raw',
-                folder='resumes/'
-            )
-            resume.file = upload_result['secure_url']
-
-        resume.save()
-        return resume
-
 
 class FollowSerializer(serializers.ModelSerializer):
     class Meta:
@@ -126,7 +111,7 @@ class JobPostSerializer(serializers.ModelSerializer):
         return job_post
 
     def update(self, instance, validated_data):
-        if 'company' in validated_data:
+        if 'created_at' in validated_data or 'company' in validated_data:
             raise ValidationError('Invalid field for update')
 
         for attr, value in validated_data.items():
