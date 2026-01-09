@@ -154,10 +154,11 @@ class CompanyImageViewSet(viewsets.GenericViewSet, generics.ListAPIView):
             company_profile = request.user.company_profile
         except AttributeError:
             raise PermissionDenied()
-
-        serializer = CompanyImageSerializer(data=request.data)
+        data = request.data.copy()
+        data['company'] = company_profile.id
+        serializer = CompanyImageSerializer(data=data)
         serializer.is_valid(raise_exception=True)
-        serializer.save(company=company_profile)
+        serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def destroy(self, request, pk=None):
