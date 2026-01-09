@@ -31,7 +31,10 @@ class UserView(viewsets.ViewSet, generics.CreateAPIView):
         profile_data = data.pop('profile', None)
         if isinstance(profile_data, list):
             profile_data = profile_data[0]
-        profile_data = json.loads(profile_data) if profile_data and isinstance(profile_data, str) else None
+        try:
+            profile_data = json.loads(profile_data) if profile_data and isinstance(profile_data, str) else None
+        except json.JSONDecodeError:
+            raise ValidationError("Invalid profile field")
         if not profile_data:
             raise ValidationError("Profile data is required")
 
@@ -64,7 +67,10 @@ class UserView(viewsets.ViewSet, generics.CreateAPIView):
                 profile_data = data.pop('profile', None)
                 if isinstance(profile_data, list):
                     profile_data = profile_data[0]
-                profile_data = json.loads(profile_data) if profile_data and isinstance(profile_data, str) else None
+                try:
+                    profile_data = json.loads(profile_data) if profile_data and isinstance(profile_data, str) else None
+                except json.JSONDecodeError:
+                    raise ValidationError("Invalid profile field")
 
                 s = serializers.UserSerializer(user, data=data, partial=True)
                 s.is_valid(raise_exception=True)
@@ -159,11 +165,10 @@ class CompanyImageViewSet(viewsets.GenericViewSet, generics.ListAPIView):
             company_profile = request.user.company_profile
         except AttributeError:
             raise PermissionDenied()
+        if CompanyImage.objects.filter(company=company_profile).count() <= 3:
+            raise ValidationError("At least three company images are required to keep the account active.")
         image = self.get_object()
         image.delete()
-        if CompanyImage.objects.filter(company=company_profile).count() < 3:
-            company_profile.active = False
-            company_profile.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -263,7 +268,10 @@ class JobPostViewSet(viewsets.ViewSet, generics.ListAPIView):
         work_times_data = data.pop('work_times', [])
 
         if isinstance(work_times_data, str):
-            work_times_data = json.loads(work_times_data)
+            try:
+                work_times_data = json.loads(work_times_data)
+            except json.JSONDecodeError:
+                raise ValidationError("Invalid work_times field")
 
         if not work_times_data:
             raise ValidationError("Work time is required")
@@ -306,7 +314,10 @@ class JobPostViewSet(viewsets.ViewSet, generics.ListAPIView):
         data = request.data.copy()
         work_times_data = data.pop('work_times', None)
         if isinstance(work_times_data, str):
-            work_times_data = json.loads(work_times_data)
+            try:
+                work_times_data = json.loads(work_times_data)
+            except json.JSONDecodeError:
+                raise ValidationError("Invalid work_times field")
 
         serializer = JobPostSerializer(job_post, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -435,6 +446,8 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
             job_post = application.job_post
 
             if new_status == Application.JobStatus.EMPLOYED:
+                if old_status != Application.JobStatus.REVIEWING:
+                    raise ValidationError('Only reviewing applications can be employed')
                 if job_post.vacancy > 0:
                     job_post.vacancy -= 1
                     job_post.save()
@@ -443,6 +456,8 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
                 application.start_date = datetime.date.today()
 
             elif new_status == Application.JobStatus.TERMINATED:
+                if old_status != Application.JobStatus.EMPLOYED:
+                    raise ValidationError('Only employed applications can be terminated')
                 application.end_date = datetime.date.today()
                 job_post.vacancy += 1
                 job_post.save()
