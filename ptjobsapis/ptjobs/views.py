@@ -125,7 +125,7 @@ class ResumeViewSet(viewsets.GenericViewSet, generics.ListAPIView):
             candidate_profile = request.user.candidate_profile
             resume = Resume.objects.get(pk=pk, candidate=candidate_profile)
         except AttributeError:
-            return PermissionDenied()
+            raise PermissionDenied()
         except Resume.DoesNotExist:
             raise NotFound('Resume not found')
 
@@ -431,9 +431,9 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
         for i in range(len(data)):
             reviewer = reviews[i].user
             if reviewer.role == User.Role.COMPANY:
-                reviewer_name = reviewer.user.company_profile.name
+                reviewer_name = reviewer.company_profile.name
             else:
-                reviewer_name = reviewer.user.get_full_name()
+                reviewer_name = reviewer.get_full_name()
             reviewer_avatar = reviewer.avatar.url if reviewer.avatar else None
             data[i]['user'] = {
                 'name': reviewer_name,
