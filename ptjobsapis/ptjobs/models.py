@@ -122,7 +122,7 @@ class Review(BaseModel):
     comment = models.TextField(null=False, blank=False)
     user = models.ForeignKey(User, on_delete=models.SET_NULL, related_name='reviews', null=True, blank=True)
     application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name='reviews')
-    parent = models.OneToOneField('self', null=True, blank=True, on_delete=models.CASCADE, related_name='reply')
+    parent = models.OneToOneField('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='reply')
 
     class Meta:
         unique_together = ('user', 'application')
