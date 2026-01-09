@@ -50,20 +50,6 @@ class CompanyImageSerializer(serializers.ModelSerializer):
         fields = ['id', 'image', 'company', 'created_at']
         read_only_fields = ['id', 'created_at']
 
-    def create(self, validated_data):
-        image_file = validated_data.pop('image', None)
-        company_image = CompanyImage(**validated_data)
-
-        if image_file:
-            upload_result = cloudinary.uploader.upload(
-                image_file,
-                folder='company_images/'
-            )
-            company_image.image = upload_result['secure_url']
-
-        company_image.save()
-        return company_image
-
     def to_representation(self, instance):
         data = super().to_representation(instance)
         if instance.image:
