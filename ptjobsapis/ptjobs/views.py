@@ -461,6 +461,7 @@ class CompanyView(viewsets.GenericViewSet, generics.RetrieveAPIView):
         company = self.get_object()
         data = serializers.CompanyProfileSerializer(company).data
         image_urls = [image.image.url for image in company.images.all()]
+        data['avatar'] = company.user.avatar.url if company.user.avatar else None
         data['images'] = image_urls
 
         if request.user.is_authenticated and request.user.role == User.Role.CANDIDATE:
@@ -502,6 +503,15 @@ class CompanyView(viewsets.GenericViewSet, generics.RetrieveAPIView):
 class CandidateView(viewsets.GenericViewSet, generics.RetrieveAPIView):
     serializer_class = serializers.CandidateProfileSerializer
     queryset = CandidateProfile.objects.select_related('user').filter(active=True)
+
+    def retrieve(self, request, *args, **kwargs):
+        candidate = self.get_object()
+        data = serializers.CandidateProfileSerializer(candidate).data
+        data['full_name'] = candidate.user.get_full_name()
+        data['email'] = candidate.user.email
+        data['phone'] = candidate.user.phone
+        data['avatar'] = candidate.user.avatar.url if candidate.user.avatar else None
+        return Response(data, status=status.HTTP_200_OK)
 
     @action(methods=['get'], url_path='reviews', detail=True)
     def get_reviews(self, request, pk):
