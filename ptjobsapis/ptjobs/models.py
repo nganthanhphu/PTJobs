@@ -95,6 +95,9 @@ class WorkTime(BaseModel):
     end_time = models.TimeField()
     job_post = models.ForeignKey(JobPost, on_delete=models.CASCADE, related_name='work_times')
 
+    class Meta:
+        unique_together = ('day', 'job_post', 'start_time', 'end_time')
+
 
 class Application(BaseModel):
     start_date = models.DateField(null=True, blank=True)
