@@ -10,7 +10,6 @@ from rest_framework.exceptions import NotFound, ValidationError, PermissionDenie
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 
-from ptjobsapis.asgi import application
 from . import serializers, perms, paginators, utils
 from .models import User, Resume, Application, CompanyImage, Follow, JobPost, JobCategory, CompanyProfile, \
     CandidateProfile, Review, WorkTime
@@ -148,7 +147,7 @@ class CompanyImageViewSet(viewsets.GenericViewSet, generics.ListAPIView):
             query = query.filter(company=company_profile)
             return query
         except AttributeError:
-            raise PermissionDenied()
+            return query.none()
 
     def create(self, request):
         try:
@@ -461,6 +460,8 @@ class CompanyView(viewsets.GenericViewSet, generics.RetrieveAPIView):
     def retrieve(self, request, *args, **kwargs):
         company = self.get_object()
         data = serializers.CompanyProfileSerializer(company).data
+        image_urls = [image.image.url for image in company.images.all()]
+        data['images'] = image_urls
 
         if request.user.is_authenticated and request.user.role == User.Role.CANDIDATE:
             candidate_profile = request.user.candidate_profile

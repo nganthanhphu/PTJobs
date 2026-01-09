@@ -64,6 +64,12 @@ class CompanyImageSerializer(serializers.ModelSerializer):
         company_image.save()
         return company_image
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.image:
+            data['image'] = instance.image.url
+        return data
+
 
 class ResumeSerializer(serializers.ModelSerializer):
     class Meta:
