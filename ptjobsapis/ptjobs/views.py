@@ -211,7 +211,9 @@ class FollowViewSet(viewsets.GenericViewSet, generics.DestroyAPIView):
             candidate_profile = request.user.candidate_profile
         except AttributeError:
             raise PermissionDenied()
-        serializer = self.get_serializer(data=request.data)
+        data = request.data.copy()
+        data['candidate'] = candidate_profile.id
+        serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         serializer.save(candidate=candidate_profile)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
