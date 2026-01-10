@@ -12,7 +12,7 @@ class BaseModel(models.Model):
 
 
 class User(AbstractUser):
-    avatar = CloudinaryField(null=True)
+    avatar = CloudinaryField(null=False, blank=False)
     phone = models.CharField(max_length=10, null=False, blank=False, unique=True)
     email = models.EmailField(blank=False, null=False, unique=True)
     class Role(models.TextChoices):
