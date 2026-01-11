@@ -5,7 +5,6 @@ from rest_framework.exceptions import ValidationError
 
 from .models import User, CandidateProfile, CompanyProfile, Review, Application, CompanyImage, Resume, Follow, JobPost, \
     JobCategory, WorkTime
-import cloudinary.uploader
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -66,6 +65,12 @@ class ResumeSerializer(serializers.ModelSerializer):
                 'read_only': True
             }
         }
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.file:
+            data['file'] = instance.file.url
+        return data
 
 
 class FollowSerializer(serializers.ModelSerializer):

@@ -20,7 +20,8 @@ from .utils import RoleMapper
 
 
 class UserView(viewsets.ViewSet, generics.CreateAPIView):
-    queryset = User.objects.select_related('candidate_profile', 'company_profile').all()
+    queryset = User.objects.select_related(
+        'candidate_profile', 'company_profile').all()
     serializer_class = UserSerializer
     parser_classes = [parsers.MultiPartParser]
 
@@ -32,7 +33,8 @@ class UserView(viewsets.ViewSet, generics.CreateAPIView):
         if isinstance(profile_data, list):
             profile_data = profile_data[0]
         try:
-            profile_data = json.loads(profile_data) if profile_data and isinstance(profile_data, str) else None
+            profile_data = json.loads(profile_data) if profile_data and isinstance(
+                profile_data, str) else None
         except json.JSONDecodeError:
             raise ValidationError("Invalid profile field")
         if not profile_data:
@@ -68,7 +70,8 @@ class UserView(viewsets.ViewSet, generics.CreateAPIView):
                 if isinstance(profile_data, list):
                     profile_data = profile_data[0]
                 try:
-                    profile_data = json.loads(profile_data) if profile_data and isinstance(profile_data, str) else None
+                    profile_data = json.loads(profile_data) if profile_data and isinstance(
+                        profile_data, str) else None
                 except json.JSONDecodeError:
                     raise ValidationError("Invalid profile field")
 
@@ -80,11 +83,13 @@ class UserView(viewsets.ViewSet, generics.CreateAPIView):
                     serializer_class = RoleMapper.get_serializer(user.role)
                     if serializer_class:
                         profile = user.profile
-                        p = serializer_class(profile, data=profile_data, partial=True)
+                        p = serializer_class(
+                            profile, data=profile_data, partial=True)
                         p.is_valid(raise_exception=True)
                         p.save()
                     else:
-                        raise ValidationError("This user type cannot have a profile")
+                        raise ValidationError(
+                            "This user type cannot have a profile")
         res_data = serializers.UserSerializer(user).data
 
         profile = None
@@ -93,7 +98,8 @@ class UserView(viewsets.ViewSet, generics.CreateAPIView):
             if serializer_class:
                 profile = serializer_class(user.profile).data
             else:
-                raise NotFound("This user type cannot and does not have a profile")
+                raise NotFound(
+                    "This user type cannot and does not have a profile")
         res_data['profile'] = profile
 
         return Response(res_data, status=status.HTTP_200_OK)
@@ -166,7 +172,8 @@ class CompanyImageViewSet(viewsets.GenericViewSet, generics.ListAPIView):
         except AttributeError:
             raise PermissionDenied()
         if CompanyImage.objects.filter(company=company_profile).count() <= 3:
-            raise ValidationError("At least three company images are required to keep the account active.")
+            raise ValidationError(
+                "At least three company images are required to keep the account active.")
         image = self.get_object()
         image.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -201,7 +208,8 @@ class FollowViewSet(viewsets.GenericViewSet, generics.DestroyAPIView):
 
     def create(self, request, *args, **kwargs):
         if not request.user.email:
-            raise ValidationError("User must have an email to follow companies")
+            raise ValidationError(
+                "User must have an email to follow companies")
         try:
             candidate_profile = request.user.candidate_profile
         except AttributeError:
@@ -245,7 +253,8 @@ class JobPostViewSet(viewsets.ViewSet, generics.ListAPIView):
         if start_time and end_time:
             start_time = datetime.time(hour=(int(start_time)))
             end_time = datetime.time(hour=(int(end_time)))
-            queryset = queryset.filter(work_times__start_time__gte=start_time, work_times__end_time__lte=end_time)
+            queryset = queryset.filter(
+                work_times__start_time__gte=start_time, work_times__end_time__lte=end_time)
 
         day = self.request.query_params.get('day')
         if day:
@@ -282,9 +291,10 @@ class JobPostViewSet(viewsets.ViewSet, generics.ListAPIView):
 
         for work_time in work_times_data:
             work_time['job_post'] = job_post.id
-            work_time_serializer = WorkTimeSerializer(data=work_time)
-            work_time_serializer.is_valid(raise_exception=True)
-            work_time_serializer.save()
+        work_time_serializers = WorkTimeSerializer(
+            data=work_times_data, many=True)
+        work_time_serializers.is_valid(raise_exception=True)
+        work_time_serializers.save()
         utils.EmailService.notify_via_email(job_post)
         return Response(JobPostSerializer(job_post).data, status=status.HTTP_201_CREATED)
 
@@ -322,19 +332,19 @@ class JobPostViewSet(viewsets.ViewSet, generics.ListAPIView):
         serializer = JobPostSerializer(job_post, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
         job_post = serializer.save()
-        if work_times_data is not None:
+        if work_times_data:
             WorkTime.objects.filter(job_post=job_post).delete()
             for work_time_data in work_times_data:
                 work_time_data['job_post'] = job_post.id
-                work_time_serializer = WorkTimeSerializer(data=work_time_data)
-                work_time_serializer.is_valid(raise_exception=True)
-                work_time_serializer.save(job_post=job_post)
+            work_time_serializers = WorkTimeSerializer(
+                data=work_times_data, many=True)
+            work_time_serializers.is_valid(raise_exception=True)
+            work_time_serializers.save()
 
         return Response(JobPostSerializer(job_post).data, status=status.HTTP_200_OK)
 
     def destroy(self, request, *args, **kwargs):
         job_post = self.get_object()
-
         job_post.active = False
         job_post.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -346,8 +356,8 @@ class JobPostViewSet(viewsets.ViewSet, generics.ListAPIView):
             application__job_post=job_post,
             active=True,
             parent__isnull=False
-        ).select_related('user', 'user__company_profile', 'user__candidate_profile', 'parent',
-                         'parent__user', 'parent__user__company_profile', 'parent__user__candidate_profile')
+        ).select_related('user', 'user__company_profile', 'parent', 'application',
+                         'parent__user', 'parent__user__company_profile').order_by('-created_at')
 
         paginator = paginators.ItemPaginator()
         paginated_reviews = paginator.paginate_queryset(reviews, request)
@@ -364,14 +374,26 @@ class JobPostViewSet(viewsets.ViewSet, generics.ListAPIView):
                 'name': reviewer_name,
                 'avatar': reviewer_avatar
             }
+            start_date = paginated_reviews[i].application.start_date.strftime('%d/%m/%Y') if paginated_reviews[
+                i].application.start_date else None
+            end_date = paginated_reviews[i].application.end_date.strftime('%d/%m/%Y') if paginated_reviews[
+                i].application.end_date else None
+            data[i]['application'] = {
+                'start_date': start_date,
+                'end_date': end_date
+            }
+
             if paginated_reviews[i].parent:
-                parent_data = ReviewSerializer(paginated_reviews[i].parent).data
+                parent_data = ReviewSerializer(
+                    paginated_reviews[i].parent).data
                 data[i]['parent'] = parent_data
                 if paginated_reviews[i].parent.user.role == User.Role.COMPANY:
                     parent_reviewer_name = paginated_reviews[i].parent.user.company_profile.name
                 else:
-                    parent_reviewer_name = paginated_reviews[i].parent.user.get_full_name()
-                parent_reviewer_avatar = paginated_reviews[i].parent.user.avatar.url if paginated_reviews[i].parent.user.avatar else None
+                    parent_reviewer_name = paginated_reviews[i].parent.user.get_full_name(
+                    )
+                parent_reviewer_avatar = paginated_reviews[i].parent.user.avatar.url if paginated_reviews[
+                    i].parent.user.avatar else None
                 data[i]['parent']['user'] = {
                     'name': parent_reviewer_name,
                     'avatar': parent_reviewer_avatar
@@ -401,12 +423,9 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
     def get_queryset(self):
         QUERYSET = {
             'CANDIDATE': Application.objects.filter(active=True, candidate__user=self.request.user).select_related(
-                'job_post', 'job_post__company', 'job_post__company__user', 'resume'),
-            'COMPANY': Application.objects.filter(active=True,
-                                                  job_post__company__user=self.request.user).select_related('job_post',
-                                                                                                            'candidate',
-                                                                                                            'candidate__user',
-                                                                                                            'resume')
+                'job_post', 'job_post__company', 'job_post__company__user').order_by('-created_at'),
+            'COMPANY': Application.objects.filter(active=True, job_post__company__user=self.request.user).select_related(
+                'job_post', 'candidate', 'candidate__user').order_by('-created_at')
         }
         user = self.request.user
         query = QUERYSET.get(user.role)
@@ -416,7 +435,65 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
             query = query.select_related('resume')
         if self.action.__eq__('create_review'):
             query = query.prefetch_related('reviews')
+
+        status = self.request.query_params.get('status')
+        if status:
+            query = query.filter(status=status)
+
         return query
+
+    def candidate_list(self, request, *args, **kwargs):
+        applications = self.get_queryset()
+        paginator = self.pagination_class()
+        paginated_applications = paginator.paginate_queryset(
+            applications, request)
+
+        data = self.serializer_class(paginated_applications, many=True).data
+        for i in range(len(data)):
+            job_post = paginated_applications[i].job_post
+            company_name = job_post.company.name
+            company_avatar = job_post.company.user.avatar.url if job_post.company.user.avatar else None
+            data[i]['job_post'] = {
+                'name': job_post.name,
+                'company': {
+                    'name': company_name,
+                    'avatar': company_avatar
+                }
+            }
+
+        return paginator.get_paginated_response(data)
+
+    def company_list(self, request, *args, **kwargs):
+        applications = self.get_queryset()
+        paginator = self.pagination_class()
+        paginated_applications = paginator.paginate_queryset(
+            applications, request)
+
+        data = self.serializer_class(paginated_applications, many=True).data
+        for i in range(len(data)):
+            candidate = paginated_applications[i].candidate
+            candidate_name = candidate.user.get_full_name()
+            candidate_avatar = candidate.user.avatar.url if candidate.user.avatar else None
+            job_post = paginated_applications[i].job_post
+            data[i]['candidate'] = {
+                'name': candidate_name,
+                'avatar': candidate_avatar
+            }
+            data[i]['job_post'] = {
+                'name': job_post.name
+            }
+
+        return paginator.get_paginated_response(data)
+
+    def list(self, request, *args, **kwargs):
+        LIST_METHODS = {
+            'CANDIDATE': self.candidate_list,
+            'COMPANY': self.company_list
+        }
+        list_method = LIST_METHODS.get(request.user.role)
+        if not list_method:
+            raise PermissionDenied()
+        return list_method(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
         try:
@@ -439,6 +516,8 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
             'name': company_name,
             'avatar': company_avatar
         }
+        job_post_name = application.job_post.name
+        data['job_post'] = {'name': job_post_name}
         resume_url = application.resume.url if application.resume else None
         data['resume'] = resume_url
         return Response(data, status=status.HTTP_200_OK)
@@ -453,6 +532,8 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
             'name': candidate_name,
             'avatar': candidate_avatar
         }
+        job_post_name = application.job_post.name
+        data['job_post'] = {'name': job_post_name}
         resume_url = application.resume.url if application.resume else None
         data['resume'] = resume_url
         return Response(data, status=status.HTTP_200_OK)
@@ -472,35 +553,44 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
 
         new_status = request.data.get('status', None)
         if not new_status:
-            raise ValidationError({'status field is required'})
-        old_status = application.status
+            raise ValidationError({'Status field is required'})
 
-        valid_statuses = [choice[0] for choice in Application.JobStatus.choices]
-        if new_status not in valid_statuses:
+        if new_status not in Application.JobStatus.values:
             raise ValidationError('Invalid status value')
 
-        if new_status == old_status:
-            return Response(ApplicationSerializer(application).data, status=status.HTTP_200_OK)
+        old_status = application.status
 
         with transaction.atomic():
             job_post = application.job_post
 
-            if new_status == Application.JobStatus.EMPLOYED:
-                if old_status != Application.JobStatus.REVIEWING:
-                    raise ValidationError('Only reviewing applications can be employed')
-                if job_post.vacancy > 0:
-                    job_post.vacancy -= 1
-                    job_post.save()
-                else:
-                    raise ValidationError('No vacancy available')
-                application.start_date = datetime.date.today()
+            match new_status:
+                case Application.JobStatus.REVIEWING:
+                    raise ValidationError(
+                        'Cannot change status back to reviewing')
 
-            elif new_status == Application.JobStatus.TERMINATED:
-                if old_status != Application.JobStatus.EMPLOYED:
-                    raise ValidationError('Only employed applications can be terminated')
-                application.end_date = datetime.date.today()
-                job_post.vacancy += 1
-                job_post.save()
+                case Application.JobStatus.EMPLOYED:
+                    if old_status != Application.JobStatus.REVIEWING:
+                        raise ValidationError(
+                            'Only reviewing applications can be employed')
+                    if job_post.vacancy > 0:
+                        job_post.vacancy -= 1
+                        job_post.save()
+                    else:
+                        raise ValidationError('No vacancy available')
+                    application.start_date = datetime.date.today()
+
+                case Application.JobStatus.TERMINATED:
+                    if old_status != Application.JobStatus.EMPLOYED:
+                        raise ValidationError(
+                            'Only employed applications can be terminated')
+                    application.end_date = datetime.date.today()
+                    job_post.vacancy += 1
+                    job_post.save()
+
+                case Application.JobStatus.REJECTED:
+                    if old_status != Application.JobStatus.REVIEWING:
+                        raise ValidationError(
+                            'Only reviewing applications can be rejected')
 
             application.status = new_status
             application.save()
@@ -523,8 +613,8 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
             application=application,
             active=True,
             parent__isnull=False
-        ).select_related('user', 'user__company_profile', 'user__candidate_profile', 'application', 'parent',
-                         'parent__user', 'parent__user__company_profile', 'parent__user__candidate_profile')
+        ).select_related('user', 'user__company_profile', 'parent',
+                         'parent__user', 'parent__user__company_profile').order_by('-created_at')
 
         paginator = paginators.ItemPaginator()
         paginated_reviews = paginator.paginate_queryset(reviews, request)
@@ -542,13 +632,16 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
                 'avatar': reviewer_avatar
             }
             if paginated_reviews[i].parent:
-                parent_data = ReviewSerializer(paginated_reviews[i].parent).data
+                parent_data = ReviewSerializer(
+                    paginated_reviews[i].parent).data
                 data[i]['parent'] = parent_data
                 if paginated_reviews[i].parent.user.role == User.Role.COMPANY:
                     parent_reviewer_name = paginated_reviews[i].parent.user.company_profile.name
                 else:
-                    parent_reviewer_name = paginated_reviews[i].parent.user.get_full_name()
-                parent_reviewer_avatar = paginated_reviews[i].parent.user.avatar.url if paginated_reviews[i].parent.user.avatar else None
+                    parent_reviewer_name = paginated_reviews[i].parent.user.get_full_name(
+                    )
+                parent_reviewer_avatar = paginated_reviews[i].parent.user.avatar.url if paginated_reviews[
+                    i].parent.user.avatar else None
                 data[i]['parent']['user'] = {
                     'name': parent_reviewer_name,
                     'avatar': parent_reviewer_avatar
@@ -581,8 +674,17 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
 
 class CompanyView(viewsets.GenericViewSet, generics.RetrieveAPIView):
     serializer_class = serializers.CompanyProfileSerializer
-    queryset = CompanyProfile.objects.filter(active=True).select_related('user').prefetch_related(
-        Prefetch('images', queryset=CompanyImage.objects.filter(active=True)))
+    queryset = CompanyProfile.objects.filter(active=True).select_related('user')
+
+    def get_queryset(self):
+        queryset = self.queryset
+        if self.action.__eq__('retrieve'):
+            queryset = queryset.prefetch_related('images')
+        
+        name = self.request.query_params.get('name')
+        if name:
+            queryset = queryset.filter(name__icontains=name)
+        return queryset
 
     def list(self, request, *args, **kwargs):
         companies = self.get_queryset().annotate(
@@ -591,12 +693,11 @@ class CompanyView(viewsets.GenericViewSet, generics.RetrieveAPIView):
         paginator = paginators.ItemPaginator()
         paginated_companies = paginator.paginate_queryset(companies, request)
 
-        data = serializers.CompanyProfileSerializer(paginated_companies, many=True).data
+        data = serializers.CompanyProfileSerializer(
+            paginated_companies, many=True).data
         for i in range(len(data)):
             company = paginated_companies[i]
-            image_urls = [image.image.url for image in company.images.all()]
             data[i]['avatar'] = company.user.avatar.url if company.user.avatar else None
-            data[i]['images'] = image_urls
             data[i]['job_post_count'] = company.job_post_count
 
         return paginator.get_paginated_response(data)
@@ -609,8 +710,9 @@ class CompanyView(viewsets.GenericViewSet, generics.RetrieveAPIView):
         data['images'] = image_urls
 
         if request.user.is_authenticated and request.user.role == User.Role.CANDIDATE:
-            candidate_profile = request.user.candidate_profile
-            is_followed = Follow.objects.filter(candidate=candidate_profile, company=company).exists()
+            user = request.user
+            is_followed = Follow.objects.filter(
+                candidate__user=user, company=company).exists()
             data['is_followed'] = is_followed
         return Response(data, status=status.HTTP_200_OK)
 
@@ -633,7 +735,8 @@ class CompanyView(viewsets.GenericViewSet, generics.RetrieveAPIView):
             reviewer_avatar = paginated_reviews[i].user.avatar.url if paginated_reviews[i].user.avatar else None
             start_date = paginated_reviews[i].application.start_date.strftime('%d/%m/%Y') if paginated_reviews[
                 i].application.start_date else None
-            end_date = paginated_reviews[i].application.end_date.strftime('%d/%m/%Y') if paginated_reviews[i].application.end_date else None
+            end_date = paginated_reviews[i].application.end_date.strftime('%d/%m/%Y') if paginated_reviews[
+                i].application.end_date else None
             data[i]['job_post'] = {
                 'name': job_name
             }
@@ -641,7 +744,7 @@ class CompanyView(viewsets.GenericViewSet, generics.RetrieveAPIView):
                 'name': reviewer_name,
                 'avatar': reviewer_avatar
             }
-            data[i]['application_period'] = {
+            data[i]['application'] = {
                 'start_date': start_date,
                 'end_date': end_date
             }
@@ -650,7 +753,8 @@ class CompanyView(viewsets.GenericViewSet, generics.RetrieveAPIView):
 
 class CandidateView(viewsets.GenericViewSet, generics.RetrieveAPIView):
     serializer_class = serializers.CandidateProfileSerializer
-    queryset = CandidateProfile.objects.select_related('user').filter(active=True)
+    queryset = CandidateProfile.objects.select_related(
+        'user').filter(active=True)
 
     def retrieve(self, request, *args, **kwargs):
         candidate = self.get_object()
@@ -668,7 +772,7 @@ class CandidateView(viewsets.GenericViewSet, generics.RetrieveAPIView):
             application__candidate=candidate,
             user__role=User.Role.COMPANY,
             active=True
-        ).select_related('user', 'user__company_profile')
+        ).select_related('user', 'user__company_profile', 'application', 'application__job_post')
 
         paginator = paginators.ItemPaginator()
         paginated_reviews = paginator.paginate_queryset(reviews, request)
@@ -680,6 +784,18 @@ class CandidateView(viewsets.GenericViewSet, generics.RetrieveAPIView):
             data[i]['user'] = {
                 'name': reviewer_name,
                 'avatar': reviewer_avatar
+            }
+            job_name = paginated_reviews[i].application.job_post.name
+            data[i]['job_post'] = {
+                'name': job_name
+            }
+            start_date = paginated_reviews[i].application.start_date.strftime('%d/%m/%Y') if paginated_reviews[
+                i].application.start_date else None
+            end_date = paginated_reviews[i].application.end_date.strftime('%d/%m/%Y') if paginated_reviews[
+                i].application.end_date else None
+            data[i]['application'] = {
+                'start_date': start_date,
+                'end_date': end_date
             }
         return paginator.get_paginated_response(data)
 
