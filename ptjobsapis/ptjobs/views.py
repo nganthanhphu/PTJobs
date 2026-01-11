@@ -518,7 +518,7 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
         }
         job_post_name = application.job_post.name
         data['job_post'] = {'name': job_post_name}
-        resume_url = application.resume.url if application.resume else None
+        resume_url = application.resume.file.url if application.resume else None
         data['resume'] = resume_url
         return Response(data, status=status.HTTP_200_OK)
 
@@ -534,7 +534,7 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
         }
         job_post_name = application.job_post.name
         data['job_post'] = {'name': job_post_name}
-        resume_url = application.resume.url if application.resume else None
+        resume_url = application.resume.file.url if application.resume else None
         data['resume'] = resume_url
         return Response(data, status=status.HTTP_200_OK)
 
