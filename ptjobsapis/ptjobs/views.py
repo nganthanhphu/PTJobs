@@ -260,6 +260,9 @@ class JobPostViewSet(viewsets.ViewSet, generics.ListAPIView):
         if day:
             queryset = queryset.filter(work_times__day=day)
 
+        name = self.request.query_params.get('name')
+        if name:
+            queryset = queryset.filter(name__icontains=name)
         return queryset
 
     @transaction.atomic
