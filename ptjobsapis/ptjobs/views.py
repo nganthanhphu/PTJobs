@@ -356,9 +356,10 @@ class JobPostViewSet(viewsets.ViewSet, generics.ListAPIView):
     def get_reviews(self, request, *args, **kwargs):
         job_post = self.get_object()
         reviews = Review.objects.filter(
+            Q(parent__isnull=True, reply__isnull=True) |
+            Q(parent__isnull=False),
             application__job_post=job_post,
-            active=True,
-            parent__isnull=False
+            active=True
         ).select_related('user', 'user__company_profile', 'parent', 'application',
                          'parent__user', 'parent__user__company_profile').order_by('-created_at')
 
@@ -387,9 +388,10 @@ class JobPostViewSet(viewsets.ViewSet, generics.ListAPIView):
             }
 
             if paginated_reviews[i].parent:
+                reply = data[i]
                 parent_data = ReviewSerializer(
                     paginated_reviews[i].parent).data
-                data[i]['parent'] = parent_data
+                data[i] = parent_data
                 if paginated_reviews[i].parent.user.role == User.Role.COMPANY:
                     parent_reviewer_name = paginated_reviews[i].parent.user.company_profile.name
                 else:
@@ -397,10 +399,11 @@ class JobPostViewSet(viewsets.ViewSet, generics.ListAPIView):
                     )
                 parent_reviewer_avatar = paginated_reviews[i].parent.user.avatar.url if paginated_reviews[
                     i].parent.user.avatar else None
-                data[i]['parent']['user'] = {
+                data[i]['user'] = {
                     'name': parent_reviewer_name,
                     'avatar': parent_reviewer_avatar
                 }
+                data[i]['reply'] = reply
         return paginator.get_paginated_response(data)
 
 
@@ -609,13 +612,14 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
         application.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @action(methods=['get'], url_path='reviews', detail=True, permission_classes=[permissions.IsAuthenticated])
+    @action(methods=['get'], url_path='get-reviews', detail=True, permission_classes=[perms.IsApplicationOwner | perms.IsApplicationBelongToCompanyUser])
     def get_reviews(self, request, *args, **kwargs):
         application = self.get_object()
         reviews = Review.objects.filter(
+            Q(parent__isnull=True, reply__isnull=True) |
+            Q(parent__isnull=False),
             application=application,
-            active=True,
-            parent__isnull=False
+            active=True
         ).select_related('user', 'user__company_profile', 'parent',
                          'parent__user', 'parent__user__company_profile').order_by('-created_at')
 
@@ -635,9 +639,10 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
                 'avatar': reviewer_avatar
             }
             if paginated_reviews[i].parent:
+                reply = data[i]
                 parent_data = ReviewSerializer(
                     paginated_reviews[i].parent).data
-                data[i]['parent'] = parent_data
+                data[i]= parent_data
                 if paginated_reviews[i].parent.user.role == User.Role.COMPANY:
                     parent_reviewer_name = paginated_reviews[i].parent.user.company_profile.name
                 else:
@@ -645,10 +650,11 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
                     )
                 parent_reviewer_avatar = paginated_reviews[i].parent.user.avatar.url if paginated_reviews[
                     i].parent.user.avatar else None
-                data[i]['parent']['user'] = {
+                data[i]['user'] = {
                     'name': parent_reviewer_name,
                     'avatar': parent_reviewer_avatar
                 }
+                data[i]['reply'] = reply
         return paginator.get_paginated_response(data)
 
     @transaction.atomic
@@ -656,6 +662,9 @@ class ApplicationViewSet(viewsets.GenericViewSet, generics.ListAPIView):
             permission_classes=[perms.IsApplicationOwner | perms.IsApplicationBelongToCompanyUser])
     def create_review(self, request, *args, **kwargs):
         application = self.get_object()
+        if application.status != Application.JobStatus.TERMINATED:
+            raise ValidationError(
+                'Only terminated applications can post reviews')
         old_reviews = [review for review in application.reviews.all()]
 
         if len(old_reviews) == 2:
